@@ -17,6 +17,8 @@
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "capture": "node scripts/capture.ts",
+    "login": "node scripts/login.ts",
     "postinstall": "playwright install chromium firefox webkit"
   },
   "keywords": [

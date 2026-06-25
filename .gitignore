@@ -1,5 +1,7 @@
 node_modules/
 dist/
+captures/
+.auth/
 *.log
 .env
 .env.*

@@ -1,6 +1,6 @@
 # Argus
 
-> An MCP server that gives an AI **eyes** on your frontend — screenshots + rendered DOM at any viewport, for infinite visual iteration.
+> An MCP server that gives an AI **eyes** on your frontend — screenshots + rendered DOM at any viewport, across routes and behind login, for infinite visual iteration.
 
 Argus is a [Model Context Protocol](https://modelcontextprotocol.io) server. It lets an AI assistant render a running frontend at one or more viewport sizes, get back a screenshot of each, read the computed CSS of specific elements, and pull the original source files — so it can *see* what it builds and iterate until the visual goal is met.
 
@@ -10,8 +10,8 @@ Named after **Argus Panoptes**, the hundred-eyed giant of Greek myth.
 
 | Tool | What it does |
 | --- | --- |
-| `capture_views` | Render a running app at one or more viewports; returns a **screenshot per viewport** + console/network diagnostics + the **rendered DOM** once. The core iteration loop. |
-| `inspect_styles` | Return **computed CSS** (box model, colors, fonts, spacing) and bounding box for selected CSS selectors at a given viewport. |
+| `capture_views` | Render **one or more routes** at **one or more viewports**; returns a screenshot per route/viewport + console/network diagnostics + the rendered DOM once per route. **Full-page by default** (auto-scrolls to trigger lazy content). Supports authenticated routes via `storageState`. The core iteration loop. |
+| `inspect_styles` | Return **computed CSS** (box model, colors, fonts, spacing) and bounding box for selected CSS selectors at a given viewport. Supports `storageState`. |
 | `read_source` | Read the project's **original source files** (by relative path or glob) so the AI can correlate the rendered UI with the code behind it. |
 
 ## How it works
@@ -26,9 +26,40 @@ Rendering is done with [Playwright](https://playwright.dev) across three engines
 | `firefox` | Gecko | Playwright's Firefox build. |
 | `webkit` | WebKit | The engine **behind Safari** — runs on Windows/Linux too. |
 
+### Routes & full-page
+
+`capture_views` takes a `baseUrl` plus an optional `routes` array of paths:
+
+```json
+{
+  "baseUrl": "http://localhost:5173",
+  "routes": ["/", "/pricing", "/faq"],
+  "viewports": [{ "preset": "mobile" }, { "preset": "desktop" }]
+}
+```
+
+That captures every route × every viewport. Captures are **full-page by default**; Argus scrolls through the page first (`autoScroll`) so lazy-loaded images/sections are present. Set `fullPage: false` for just the above-the-fold viewport.
+
+### Authenticated routes
+
+To reach pages behind a sign-in, generate a Playwright **storageState** once and pass it to the tools — no credentials are stored in Argus:
+
+```bash
+npm run login -- http://localhost:5173/ .auth/state.json
+# A real browser opens. Sign in, then press Enter to save the session.
+```
+
+Then capture with:
+
+```json
+{ "baseUrl": "http://localhost:5173", "routes": ["/dashboard"], "storageState": ".auth/state.json", "viewports": [{ "preset": "desktop" }] }
+```
+
+`.auth/` and `captures/` are git-ignored, so sessions and screenshots never get committed.
+
 ## Requirements
 
-- Node.js >= 20
+- Node.js >= 20 (uses native TypeScript execution for the dev scripts)
 - Playwright browser binaries (installed automatically via `postinstall`)
 
 ## Install & build
@@ -57,6 +88,16 @@ Or add it to your MCP client config manually:
 }
 ```
 
+In an MCP client, the screenshots returned by `capture_views` render **inline in the chat**.
+
+## Viewing captures without an MCP client
+
+For quick local viewing, the `capture` script drives Argus and saves PNGs to `captures/`:
+
+```bash
+npm run capture -- http://localhost:5173/ chromium --open
+```
+
 ## Viewport presets
 
 `capture_views` and `inspect_styles` accept either a preset name or a custom `{ width, height }`.
@@ -67,24 +108,6 @@ Or add it to your MCP client config manually:
 | `tablet` | 768 × 1024 |
 | `laptop` | 1366 × 768 |
 | `desktop` | 1920 × 1080 |
-
-## Example
-
-With your app running at `http://localhost:5173`, ask the assistant something like:
-
-> "Capture the homepage at mobile, tablet and desktop with Argus, then make the hero section match the mockup."
-
-Under the hood the assistant calls `capture_views` with:
-
-```json
-{
-  "target": "http://localhost:5173",
-  "engine": "chromium",
-  "viewports": [{ "preset": "mobile" }, { "preset": "tablet" }, { "preset": "desktop" }]
-}
-```
-
-…sees the three screenshots, edits the code, and captures again — looping until it looks right.
 
 ## Architecture
 
@@ -106,13 +129,14 @@ src/
     source-reader.interface.ts      # SourceReader abstraction
     file-system-source-reader.ts    # filesystem implementation (glob + traversal guard)
   viewports/viewport.ts             # presets + resolution
+scripts/
+  capture.ts                        # dev helper: save captures to captures/
+  login.ts                          # dev helper: save an authenticated storageState
 ```
 
 ## Roadmap
 
-- Cross-engine capture (same viewport across `chromium`/`firefox`/`webkit`) in one call
-- Optional `chromium` channel to drive the real installed Chrome
-- Element-level screenshots (clip to a selector)
+See [ROADMAP.md](ROADMAP.md).
 
 ## License
 

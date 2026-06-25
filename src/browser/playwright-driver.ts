@@ -2,9 +2,9 @@
  * Playwright-backed implementation of the browser capabilities.
  *
  * One browser process is launched lazily per engine and reused across calls;
- * each capture runs in its own context (isolated cookies/storage) and is closed
- * afterwards. Implements the narrow capability interfaces so tools never see
- * Playwright directly.
+ * each capture runs in its own context (isolated cookies/storage, or a provided
+ * authenticated storageState) and is closed afterwards. Implements the narrow
+ * capability interfaces so tools never see Playwright directly.
  */
 
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from "playwright";
@@ -56,12 +56,15 @@ const DEFAULT_STYLE_PROPERTIES: readonly string[] = [
 
 const NAVIGATION_TIMEOUT_MS = 30_000;
 const SELECTOR_TIMEOUT_MS = 15_000;
+const AUTO_SCROLL_STEP_DELAY_MS = 80;
+const AUTO_SCROLL_SETTLE_MS = 400;
+const MAX_AUTO_SCROLL_PX = 50_000;
 
 export class PlaywrightDriver implements PageCapturer, StyleInspector, Disposable {
   private readonly browsers = new Map<BrowserEngine, Browser>();
 
   async capture(request: CaptureRequest): Promise<CaptureResult> {
-    const page = await this.openPage(request.engine, request.viewport.width, request.viewport.height);
+    const page = await this.openPage(request);
     const consoleMessages: ConsoleMessage[] = [];
     const failedRequests: FailedRequest[] = [];
 
@@ -71,17 +74,21 @@ export class PlaywrightDriver implements PageCapturer, StyleInspector, Disposabl
     page.on("pageerror", (error) => {
       consoleMessages.push({ type: "error", text: error.message });
     });
-    page.on("requestfailed", (request_) => {
+    page.on("requestfailed", (failed) => {
       failedRequests.push({
-        url: request_.url(),
-        method: request_.method(),
-        failure: request_.failure()?.errorText ?? "unknown error",
+        url: failed.url(),
+        method: failed.method(),
+        failure: failed.failure()?.errorText ?? "unknown error",
       });
     });
 
     try {
       await page.goto(request.target, { waitUntil: "networkidle", timeout: NAVIGATION_TIMEOUT_MS });
       await this.applyWaits(page, request.waitForSelector, request.waitForMs);
+
+      if (request.fullPage && request.autoScroll) {
+        await this.autoScroll(page);
+      }
 
       const screenshot = await page.screenshot({ fullPage: request.fullPage, type: "png" });
       const html = await page.content();
@@ -98,7 +105,7 @@ export class PlaywrightDriver implements PageCapturer, StyleInspector, Disposabl
   }
 
   async inspectStyles(request: StyleInspectionRequest): Promise<StyleInspectionResult> {
-    const page = await this.openPage(request.engine, request.viewport.width, request.viewport.height);
+    const page = await this.openPage(request);
     const properties = request.properties.length > 0 ? request.properties : DEFAULT_STYLE_PROPERTIES;
 
     try {
@@ -118,9 +125,16 @@ export class PlaywrightDriver implements PageCapturer, StyleInspector, Disposabl
     await Promise.all(open.map((browser) => browser.close()));
   }
 
-  private async openPage(engine: BrowserEngine, width: number, height: number): Promise<Page> {
-    const browser = await this.getBrowser(engine);
-    const context = await browser.newContext({ viewport: { width, height } });
+  private async openPage(request: {
+    engine: BrowserEngine;
+    viewport: { width: number; height: number };
+    storageState?: string;
+  }): Promise<Page> {
+    const browser = await this.getBrowser(request.engine);
+    const context = await browser.newContext({
+      viewport: { width: request.viewport.width, height: request.viewport.height },
+      storageState: request.storageState,
+    });
     return context.newPage();
   }
 
@@ -141,6 +155,31 @@ export class PlaywrightDriver implements PageCapturer, StyleInspector, Disposabl
     if (waitForMs !== undefined && waitForMs > 0) {
       await page.waitForTimeout(waitForMs);
     }
+  }
+
+  /**
+   * Scroll through the page in viewport-sized steps to trigger lazy-loaded
+   * content (images, sections), then return to the top. Bounded by
+   * {@link MAX_AUTO_SCROLL_PX} so infinite-scroll pages terminate.
+   */
+  private async autoScroll(page: Page): Promise<void> {
+    const step = Math.max(200, await page.evaluate(() => window.innerHeight));
+    let scrolled = 0;
+
+    while (scrolled < MAX_AUTO_SCROLL_PX) {
+      const reachedBottom = await page.evaluate((delta: number) => {
+        window.scrollBy(0, delta);
+        return window.scrollY + window.innerHeight >= document.body.scrollHeight;
+      }, step);
+      scrolled += step;
+      await page.waitForTimeout(AUTO_SCROLL_STEP_DELAY_MS);
+      if (reachedBottom) {
+        break;
+      }
+    }
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(AUTO_SCROLL_SETTLE_MS);
   }
 
   private async extractStyles(

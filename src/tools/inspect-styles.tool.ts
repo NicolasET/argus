@@ -15,7 +15,7 @@ import type { ToolRegistration } from "./tool-registration.interface.js";
 import { describeViewport, resolveViewport, VIEWPORT_PRESETS, type Viewport } from "../viewports/viewport.js";
 
 const inputSchema = {
-  target: z.string().describe("URL of the running app, e.g. http://localhost:5173"),
+  target: z.string().describe("URL to inspect, e.g. http://localhost:5173/pricing"),
   engine: z
     .enum(["chromium", "firefox", "webkit"])
     .default("chromium")
@@ -28,6 +28,10 @@ const inputSchema = {
     .array(z.string())
     .optional()
     .describe("CSS properties to read; defaults to a curated layout/typography set."),
+  storageState: z
+    .string()
+    .optional()
+    .describe("Path to a Playwright storageState JSON to inspect authenticated pages (see scripts/login.ts)."),
   waitForSelector: z.string().optional().describe("CSS selector to wait for before reading."),
   waitForMs: z.number().int().nonnegative().optional().describe("Extra wait (ms) before reading."),
 };
@@ -57,6 +61,7 @@ export class InspectStylesTool implements ToolRegistration {
     height?: number;
     selectors: string[];
     properties?: string[];
+    storageState?: string;
     waitForSelector?: string;
     waitForMs?: number;
   }): Promise<CallToolResult> {
@@ -71,6 +76,7 @@ export class InspectStylesTool implements ToolRegistration {
       viewport,
       selectors: args.selectors,
       properties: args.properties ?? [],
+      storageState: args.storageState,
       waitForSelector: args.waitForSelector,
       waitForMs: args.waitForMs,
     });
@@ -90,9 +96,7 @@ function formatElementStyles(element: ElementStyles): string {
   const lines: string[] = [`Selector "${element.selector}":`];
   if (element.boundingBox !== undefined) {
     const box = element.boundingBox;
-    lines.push(
-      `  box: x=${round(box.x)} y=${round(box.y)} w=${round(box.width)} h=${round(box.height)}`,
-    );
+    lines.push(`  box: x=${round(box.x)} y=${round(box.y)} w=${round(box.width)} h=${round(box.height)}`);
   }
   for (const [property, value] of Object.entries(element.styles)) {
     lines.push(`  ${property}: ${value}`);

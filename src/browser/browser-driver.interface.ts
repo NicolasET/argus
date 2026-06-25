@@ -26,12 +26,16 @@ export interface FailedRequest {
 }
 
 export interface CaptureRequest {
-  /** URL of the running app, e.g. http://localhost:5173. */
+  /** Full URL to capture, e.g. http://localhost:5173/pricing. */
   readonly target: string;
   readonly engine: BrowserEngine;
   readonly viewport: Viewport;
   /** Capture the full scrollable page instead of just the visible viewport. */
   readonly fullPage: boolean;
+  /** When fullPage, scroll through the page first to trigger lazy-loaded content. */
+  readonly autoScroll: boolean;
+  /** Optional path to a Playwright storageState JSON for authenticated pages. */
+  readonly storageState?: string;
   /** Optional CSS selector to wait for before capturing. */
   readonly waitForSelector?: string;
   /** Optional extra delay (ms) before capturing, for late paints/animations. */
@@ -55,6 +59,8 @@ export interface StyleInspectionRequest {
   readonly selectors: readonly string[];
   /** CSS properties to read; when empty the driver uses a curated default set. */
   readonly properties: readonly string[];
+  /** Optional path to a Playwright storageState JSON for authenticated pages. */
+  readonly storageState?: string;
   readonly waitForSelector?: string;
   readonly waitForMs?: number;
 }

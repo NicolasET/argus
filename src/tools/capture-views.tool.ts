@@ -1,28 +1,28 @@
 /**
  * `capture_views` — the core "eye" of Argus.
  *
- * Opens a running app at one or more viewports and returns a screenshot per
- * viewport plus console/network diagnostics, and the rendered DOM once (the
- * HTML is shared across viewports; only the CSS-driven layout changes). This is
- * the tool an AI calls repeatedly to iterate towards a visual goal.
+ * Opens one or more routes of a running app at one or more viewports and returns
+ * a screenshot per route/viewport, console/network diagnostics, and the rendered
+ * DOM once per route. Full-page by default (auto-scrolling to trigger lazy
+ * content); authenticated routes are reached via a Playwright storageState.
  */
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-import type {
-  BrowserEngine,
-  CaptureResult,
-  PageCapturer,
-} from "../browser/browser-driver.interface.js";
+import type { BrowserEngine, CaptureResult, PageCapturer } from "../browser/browser-driver.interface.js";
 import type { ToolRegistration } from "./tool-registration.interface.js";
 import { describeViewport, resolveViewport, type Viewport } from "../viewports/viewport.js";
 
 const MAX_DIAGNOSTIC_LINES = 50;
 
 const inputSchema = {
-  target: z.string().describe("URL of the running app, e.g. http://localhost:5173"),
+  baseUrl: z.string().describe("Origin of the running app, e.g. http://localhost:5173"),
+  routes: z
+    .array(z.string())
+    .optional()
+    .describe('Paths to capture under baseUrl, e.g. ["/", "/pricing", "/faq"]. Omit to capture baseUrl as-is.'),
   engine: z
     .enum(["chromium", "firefox", "webkit"])
     .default("chromium")
@@ -38,14 +38,27 @@ const inputSchema = {
     )
     .min(1)
     .describe("One or more viewports; each is a preset or a custom { width, height }."),
-  fullPage: z.boolean().default(false).describe("Capture the full scrollable page."),
-  includeHtml: z
+  fullPage: z
     .boolean()
     .default(true)
-    .describe("Include the rendered DOM once in the response."),
+    .describe("Capture the full scrollable page (default). Set false for just the above-the-fold viewport."),
+  autoScroll: z
+    .boolean()
+    .default(true)
+    .describe("Before a full-page capture, scroll through the page to trigger lazy-loaded content."),
+  storageState: z
+    .string()
+    .optional()
+    .describe("Path to a Playwright storageState JSON to reach authenticated routes (see scripts/login.ts)."),
+  includeHtml: z.boolean().default(true).describe("Include the rendered DOM once per route."),
   waitForSelector: z.string().optional().describe("CSS selector to wait for before capturing."),
   waitForMs: z.number().int().nonnegative().optional().describe("Extra wait (ms) before capturing."),
 };
+
+interface ResolvedRoute {
+  readonly label: string;
+  readonly url: string;
+}
 
 export class CaptureViewsTool implements ToolRegistration {
   constructor(private readonly capturer: PageCapturer) {}
@@ -56,9 +69,10 @@ export class CaptureViewsTool implements ToolRegistration {
       {
         title: "Capture frontend views",
         description:
-          "Render a running frontend at one or more viewport sizes and return a screenshot " +
-          "per viewport, console/network diagnostics, and the rendered DOM. Use it to see how " +
-          "the UI looks and iterate until the visual goal is met.",
+          "Render one or more routes of a running frontend at one or more viewport sizes and " +
+          "return a screenshot per route/viewport, console/network diagnostics, and the rendered " +
+          "DOM. Full-page by default. Use it to see how the UI looks and iterate until the visual " +
+          "goal is met.",
         inputSchema,
       },
       async (args) => this.handle(args),
@@ -66,55 +80,77 @@ export class CaptureViewsTool implements ToolRegistration {
   }
 
   private async handle(args: {
-    target: string;
+    baseUrl: string;
+    routes?: string[];
     engine: BrowserEngine;
     viewports: ReadonlyArray<{ preset?: "mobile" | "tablet" | "laptop" | "desktop"; width?: number; height?: number; label?: string }>;
     fullPage: boolean;
+    autoScroll: boolean;
+    storageState?: string;
     includeHtml: boolean;
     waitForSelector?: string;
     waitForMs?: number;
   }): Promise<CallToolResult> {
     let viewports: Viewport[];
+    let routes: ResolvedRoute[];
     try {
       viewports = args.viewports.map((input) => resolveViewport(input));
+      routes = resolveRoutes(args.baseUrl, args.routes);
     } catch (error) {
       return errorResult(error);
     }
 
     const content: CallToolResult["content"] = [];
-    let renderedHtml: string | undefined;
 
-    for (const viewport of viewports) {
-      const result = await this.capturer.capture({
-        target: args.target,
-        engine: args.engine,
-        viewport,
-        fullPage: args.fullPage,
-        waitForSelector: args.waitForSelector,
-        waitForMs: args.waitForMs,
-      });
+    for (const route of routes) {
+      let renderedHtml: string | undefined;
 
-      if (renderedHtml === undefined) {
-        renderedHtml = result.html;
+      for (const viewport of viewports) {
+        const result = await this.capturer.capture({
+          target: route.url,
+          engine: args.engine,
+          viewport,
+          fullPage: args.fullPage,
+          autoScroll: args.autoScroll,
+          storageState: args.storageState,
+          waitForSelector: args.waitForSelector,
+          waitForMs: args.waitForMs,
+        });
+
+        if (renderedHtml === undefined) {
+          renderedHtml = result.html;
+        }
+
+        content.push({ type: "image", data: result.screenshotBase64, mimeType: "image/png" });
+        content.push({ type: "text", text: formatViewportReport(route, viewport, args.engine, result) });
       }
 
-      content.push({ type: "image", data: result.screenshotBase64, mimeType: "image/png" });
-      content.push({ type: "text", text: formatViewportReport(viewport, args.engine, result) });
-    }
-
-    if (args.includeHtml && renderedHtml !== undefined) {
-      content.push({
-        type: "text",
-        text: `Rendered DOM (after JS), shared across viewports:\n\n${renderedHtml}`,
-      });
+      if (args.includeHtml && renderedHtml !== undefined) {
+        content.push({
+          type: "text",
+          text: `Rendered DOM (after JS) for ${route.label}:\n\n${renderedHtml}`,
+        });
+      }
     }
 
     return { content };
   }
 }
 
-function formatViewportReport(viewport: Viewport, engine: BrowserEngine, result: CaptureResult): string {
-  const lines: string[] = [`Viewport: ${describeViewport(viewport)} | Engine: ${engine}`];
+function resolveRoutes(baseUrl: string, routes?: string[]): ResolvedRoute[] {
+  if (routes === undefined || routes.length === 0) {
+    return [{ label: baseUrl, url: baseUrl }];
+  }
+  return routes.map((route) => ({ label: route, url: new URL(route, baseUrl).href }));
+}
+
+function formatViewportReport(
+  route: ResolvedRoute,
+  viewport: Viewport,
+  engine: BrowserEngine,
+  result: CaptureResult,
+): string {
+  const lines: string[] = [`Route: ${route.label} | Viewport: ${describeViewport(viewport)} | Engine: ${engine}`];
 
   if (result.consoleMessages.length === 0) {
     lines.push("Console: (no messages)");
