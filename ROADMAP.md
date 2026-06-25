@@ -2,24 +2,25 @@
 
 **Guiding principle:** every feature must shorten the loop **see → understand → fix → re-see**. Ordered by value/effort.
 
-## Phase 0 — Hardening _(in progress)_
+## Phase 0 — Hardening ✅ _(done)_
 
 The safety net that turns the prototype into something trustworthy to iterate with.
 
-- **Tests** — unit for the viewport resolver and the `SourceReader` path-traversal guard; integration for the driver against a local HTML fixture (no dependency on a running `localhost`).
-- **CI** (GitHub Actions) — `typecheck` + `build` + `test` + cached `playwright install`.
-- **`.gitattributes`** (`* text=auto eol=lf`) — stop the CRLF warnings.
-- **Clear errors** — when the app is down or a selector never appears, return `isError` with a useful message instead of a raw stack.
-- **Robust full-page capture** _(active fix)_ — capture the whole page by default, auto-scrolling first to trigger lazy-loaded content; keep above-the-fold available via `fullPage: false`.
+- [x] **Tests** — `node:test` units (viewport/route resolvers, `SourceReader` path-traversal guard) + driver integration against a local fixture server.
+- [x] **CI** (GitHub Actions) — runs `npm run check` (format + build + lint + tests) on Node 22 with Playwright Chromium.
+- [x] **`.gitattributes`** (`* text=auto eol=lf`) — no more CRLF warnings.
+- [x] **Clear errors** — failed captures are reported per route/viewport; tool handlers return `isError` instead of a raw stack.
+- [x] **Robust full-page capture** — full page by default, auto-scrolling to trigger lazy-loaded content; `fullPage: false` for above-the-fold.
+- [x] **Quality gate** — strong-typed `tsconfig`, ESLint (typescript-eslint strict-type-checked) + Prettier, Husky (pre-commit lint-staged, pre-push `check`), and `CLAUDE.md`.
 
 ## Navigation & Coverage _(cross-cutting theme)_
 
 Raised early: a single above-the-fold shot of one public route is not enough.
 
-- **Full page vs viewport** — see _Robust full-page capture_ above.
-- **Multiple routes** — capture several paths under a base URL (e.g. `/`, `/pricing`, `/faq`) in a controlled way, mindful of image/token volume.
-- **Authenticated routes** — reach pages behind sign-in. Preferred approach: Playwright `storageState` (log in once, reuse the session) and/or a persistent browser profile; no credentials stored in Argus.
-- **Pre-capture interaction** — click/scroll/fill before capturing (see Phase 3) for states and flows.
+- [x] **Full page vs viewport** — full-page default with auto-scroll.
+- [x] **Multiple routes** — `capture_views` takes `baseUrl` + `routes[]`.
+- [x] **Authenticated routes** — Playwright `storageState` on both tools + `scripts/login.ts` to generate it.
+- [ ] **Pre-capture interaction** — click/scroll/fill before capturing (see Phase 3).
 
 ## Phase 1 — Sharper eyes
 
