@@ -12,6 +12,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import type { BrowserEngine, ElementStyles, StyleInspector } from "../browser/browser-driver.interface.js";
 import type { ToolRegistration } from "./tool-registration.interface.js";
+import { toErrorResult } from "./tool-result.js";
 import { describeViewport, resolveViewport, VIEWPORT_PRESETS, type Viewport } from "../viewports/viewport.js";
 
 const inputSchema = {
@@ -65,26 +66,30 @@ export class InspectStylesTool implements ToolRegistration {
     waitForSelector?: string;
     waitForMs?: number;
   }): Promise<CallToolResult> {
-    const viewport: Viewport = resolveViewport(
-      { preset: args.preset, width: args.width, height: args.height },
-      VIEWPORT_PRESETS.desktop,
-    );
+    try {
+      const viewport: Viewport = resolveViewport(
+        { preset: args.preset, width: args.width, height: args.height },
+        VIEWPORT_PRESETS.desktop,
+      );
 
-    const result = await this.inspector.inspectStyles({
-      target: args.target,
-      engine: args.engine,
-      viewport,
-      selectors: args.selectors,
-      properties: args.properties ?? [],
-      storageState: args.storageState,
-      waitForSelector: args.waitForSelector,
-      waitForMs: args.waitForMs,
-    });
+      const result = await this.inspector.inspectStyles({
+        target: args.target,
+        engine: args.engine,
+        viewport,
+        selectors: args.selectors,
+        properties: args.properties ?? [],
+        storageState: args.storageState,
+        waitForSelector: args.waitForSelector,
+        waitForMs: args.waitForMs,
+      });
 
-    const header = `Computed styles at ${describeViewport(viewport)} | Engine: ${args.engine}`;
-    const blocks = result.elements.map((element) => formatElementStyles(element));
+      const header = `Computed styles at ${describeViewport(viewport)} | Engine: ${args.engine}`;
+      const blocks = result.elements.map((element) => formatElementStyles(element));
 
-    return { content: [{ type: "text", text: [header, "", ...blocks].join("\n\n") }] };
+      return { content: [{ type: "text", text: [header, "", ...blocks].join("\n\n") }] };
+    } catch (error) {
+      return toErrorResult(error);
+    }
   }
 }
 

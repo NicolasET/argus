@@ -5,6 +5,9 @@
  * a screenshot per route/viewport, console/network diagnostics, and the rendered
  * DOM once per route. Full-page by default (auto-scrolling to trigger lazy
  * content); authenticated routes are reached via a Playwright storageState.
+ *
+ * A failed route/viewport is reported as a text block and does not abort the
+ * rest; the result is only marked `isError` when every capture failed.
  */
 
 import { z } from "zod";
@@ -13,6 +16,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import type { BrowserEngine, CaptureResult, PageCapturer } from "../browser/browser-driver.interface.js";
 import type { ToolRegistration } from "./tool-registration.interface.js";
+import { describeError, toErrorResult } from "./tool-result.js";
 import { describeViewport, resolveViewport, type Viewport } from "../viewports/viewport.js";
 
 const MAX_DIAGNOSTIC_LINES = 50;
@@ -97,32 +101,43 @@ export class CaptureViewsTool implements ToolRegistration {
       viewports = args.viewports.map((input) => resolveViewport(input));
       routes = resolveRoutes(args.baseUrl, args.routes);
     } catch (error) {
-      return errorResult(error);
+      return toErrorResult(error);
     }
 
     const content: CallToolResult["content"] = [];
+    let succeeded = 0;
+    let failed = 0;
 
     for (const route of routes) {
       let renderedHtml: string | undefined;
 
       for (const viewport of viewports) {
-        const result = await this.capturer.capture({
-          target: route.url,
-          engine: args.engine,
-          viewport,
-          fullPage: args.fullPage,
-          autoScroll: args.autoScroll,
-          storageState: args.storageState,
-          waitForSelector: args.waitForSelector,
-          waitForMs: args.waitForMs,
-        });
+        try {
+          const result = await this.capturer.capture({
+            target: route.url,
+            engine: args.engine,
+            viewport,
+            fullPage: args.fullPage,
+            autoScroll: args.autoScroll,
+            storageState: args.storageState,
+            waitForSelector: args.waitForSelector,
+            waitForMs: args.waitForMs,
+          });
 
-        if (renderedHtml === undefined) {
-          renderedHtml = result.html;
+          if (renderedHtml === undefined) {
+            renderedHtml = result.html;
+          }
+
+          content.push({ type: "image", data: result.screenshotBase64, mimeType: "image/png" });
+          content.push({ type: "text", text: formatViewportReport(route, viewport, args.engine, result) });
+          succeeded += 1;
+        } catch (error) {
+          failed += 1;
+          content.push({
+            type: "text",
+            text: `Failed to capture ${route.label} at ${describeViewport(viewport)} (${args.engine}): ${describeError(error)}`,
+          });
         }
-
-        content.push({ type: "image", data: result.screenshotBase64, mimeType: "image/png" });
-        content.push({ type: "text", text: formatViewportReport(route, viewport, args.engine, result) });
       }
 
       if (args.includeHtml && renderedHtml !== undefined) {
@@ -133,11 +148,14 @@ export class CaptureViewsTool implements ToolRegistration {
       }
     }
 
+    if (succeeded === 0 && failed > 0) {
+      return { content, isError: true };
+    }
     return { content };
   }
 }
 
-function resolveRoutes(baseUrl: string, routes?: string[]): ResolvedRoute[] {
+export function resolveRoutes(baseUrl: string, routes?: string[]): ResolvedRoute[] {
   if (routes === undefined || routes.length === 0) {
     return [{ label: baseUrl, url: baseUrl }];
   }
@@ -171,9 +189,4 @@ function formatViewportReport(
   }
 
   return lines.join("\n");
-}
-
-function errorResult(error: unknown): CallToolResult {
-  const message = error instanceof Error ? error.message : String(error);
-  return { content: [{ type: "text", text: message }], isError: true };
 }

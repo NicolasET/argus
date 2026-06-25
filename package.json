@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "capture": "node scripts/capture.ts",
     "login": "node scripts/login.ts",
+    "test": "tsc && node --test \"test/*.test.ts\"",
     "postinstall": "playwright install chromium firefox webkit"
   },
   "keywords": [

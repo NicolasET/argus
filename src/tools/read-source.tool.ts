@@ -11,6 +11,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import type { SourceFile, SourceReader } from "../sourcing/source-reader.interface.js";
 import type { ToolRegistration } from "./tool-registration.interface.js";
+import { toErrorResult } from "./tool-result.js";
 
 const DEFAULT_MAX_FILES = 20;
 const DEFAULT_MAX_BYTES_PER_FILE = 64 * 1024;
@@ -54,40 +55,44 @@ export class ReadSourceTool implements ToolRegistration {
     maxFiles: number;
     maxBytesPerFile: number;
   }): Promise<CallToolResult> {
-    const result = await this.reader.read({
-      projectRoot: args.projectRoot,
-      patterns: args.patterns,
-      maxFiles: args.maxFiles,
-      maxBytesPerFile: args.maxBytesPerFile,
-    });
-
-    if (result.files.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `No files matched under ${args.projectRoot} for patterns: ${args.patterns.join(", ")}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-
-    const content: CallToolResult["content"] = result.files.map((file) => ({
-      type: "text",
-      text: formatSourceFile(file),
-    }));
-
-    if (result.skipped.length > 0) {
-      content.push({
-        type: "text",
-        text:
-          `Skipped ${result.skipped.length} file(s) due to maxFiles=${args.maxFiles}: ` +
-          result.skipped.slice(0, MAX_SKIPPED_LISTED).join(", "),
+    try {
+      const result = await this.reader.read({
+        projectRoot: args.projectRoot,
+        patterns: args.patterns,
+        maxFiles: args.maxFiles,
+        maxBytesPerFile: args.maxBytesPerFile,
       });
-    }
 
-    return { content };
+      if (result.files.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No files matched under ${args.projectRoot} for patterns: ${args.patterns.join(", ")}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const content: CallToolResult["content"] = result.files.map((file) => ({
+        type: "text",
+        text: formatSourceFile(file),
+      }));
+
+      if (result.skipped.length > 0) {
+        content.push({
+          type: "text",
+          text:
+            `Skipped ${result.skipped.length} file(s) due to maxFiles=${args.maxFiles}: ` +
+            result.skipped.slice(0, MAX_SKIPPED_LISTED).join(", "),
+        });
+      }
+
+      return { content };
+    } catch (error) {
+      return toErrorResult(error);
+    }
   }
 }
 
