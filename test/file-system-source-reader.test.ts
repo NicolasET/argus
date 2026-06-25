@@ -40,9 +40,10 @@ describe("FileSystemSourceReader", () => {
       maxFiles: 10,
       maxBytesPerFile: 4,
     });
-    assert.equal(result.files.length, 1);
-    assert.equal(result.files[0]?.truncated, true);
-    assert.equal(result.files[0]?.content, "body");
+    assert.deepEqual(
+      result.files.map((file) => ({ truncated: file.truncated, content: file.content })),
+      [{ truncated: true, content: "body" }],
+    );
   });
 
   it("respects maxFiles and reports the rest as skipped", async () => {

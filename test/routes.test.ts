@@ -12,9 +12,12 @@ describe("resolveRoutes", () => {
 
   it("joins each route against the baseUrl", () => {
     const result = resolveRoutes("http://localhost:5173", ["/", "/pricing"]);
-    assert.equal(result.length, 2);
-    assert.equal(result[0]?.url, "http://localhost:5173/");
-    assert.equal(result[1]?.url, "http://localhost:5173/pricing");
-    assert.equal(result[1]?.label, "/pricing");
+    assert.deepEqual(
+      result.map((route) => ({ label: route.label, url: route.url })),
+      [
+        { label: "/", url: "http://localhost:5173/" },
+        { label: "/pricing", url: "http://localhost:5173/pricing" },
+      ],
+    );
   });
 });

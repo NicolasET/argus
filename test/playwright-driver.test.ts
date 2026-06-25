@@ -24,7 +24,11 @@ describe("PlaywrightDriver", () => {
 
   after(async () => {
     await driver.dispose();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => {
+      server.close(() => {
+        resolve();
+      });
+    });
   });
 
   it("captures a screenshot and the rendered DOM", async () => {

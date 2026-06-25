@@ -20,24 +20,20 @@ export default tseslint.config(
     rules: {
       // Numbers in template literals are fine; everything else stays restricted.
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
-    },
-  },
-  {
-    // Dev scripts and tests run via Node's TS stripping and talk to loosely-typed
-    // surfaces (the MCP client SDK, the test harness); relax the type-aware rules
-    // that fight those boundaries. Production code in src/ stays fully strict.
-    files: ["scripts/**/*.ts", "test/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-floating-promises": "off",
-      "@typescript-eslint/no-unsafe-argument": "off",
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unsafe-call": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "@typescript-eslint/no-unsafe-return": "off",
-      "@typescript-eslint/no-unnecessary-condition": "off",
-      "@typescript-eslint/no-confusing-void-expression": "off",
-      "@typescript-eslint/prefer-nullish-coalescing": "off",
-      "@typescript-eslint/restrict-template-expressions": "off",
+      // node:test's describe/it/before/after intentionally return un-awaited promises
+      // (the runner manages them). This is the rule's documented allowlist, not a disable.
+      "@typescript-eslint/no-floating-promises": [
+        "error",
+        {
+          allowForKnownSafeCalls: [
+            {
+              from: "package",
+              package: "node:test",
+              name: ["describe", "it", "before", "after", "beforeEach", "afterEach", "test"],
+            },
+          ],
+        },
+      ],
     },
   },
   eslintConfigPrettier,

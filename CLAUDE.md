@@ -9,19 +9,34 @@ Argus is an MCP server that gives an AI **eyes** on a frontend: it renders a run
 - **English everything** in code, comments, identifiers, and docs (chat may be Spanish).
 - **No barrel files** — never an `index.ts` that only re-exports.
 - **SOLID, dependency-inverted.** Tools depend on interfaces, never on Playwright/`fs` directly.
+- **Keep this guide current.** It is living documentation and part of the definition of done — update it in the same change as any structural, convention, or workflow change.
+
+## Maintaining this guide
+
+Treat this file like code — **stale guidance is a bug**, and keeping it current is part of the definition of done. This is why the sections below describe _shape and rules_, not file inventories.
+
+- **Sync in the same change.** When you add/rename/move/delete a directory or shift a responsibility, or change a script, convention, or workflow, update the affected section here in the _same_ commit.
+- **Describe shape, not every file.** Capture layers, responsibilities, rules, and gotchas — these age well. For an exact, current file list, read the repo (`git ls-files src`) rather than duplicating it here; duplicated inventories are exactly what rots.
+- **Reconcile before finishing.** Before calling a task done, skim this file against what you changed; fix anything now wrong, and add any gotcha worth warning the next session about.
+- **Prune.** Delete guidance that no longer applies. Short and correct beats long and stale.
 
 ## Architecture
 
-- `src/index.ts` — composition root; the **only** place that names concrete classes. Wires implementations into tools and starts the stdio server.
-- `src/server/` — builds the `McpServer` and registers `ToolRegistration`s (Open/Closed: add a tool by passing it in, never by editing the server).
-- `src/tools/` — one file per MCP tool (`*.tool.ts`); each implements `ToolRegistration` and depends on a **narrow capability interface**. Shared result helpers live in `tool-result.ts`.
-- `src/browser/` — `browser-driver.interface.ts` (capabilities `PageCapturer` / `StyleInspector` / `Disposable`) and `playwright-driver.ts` (the only Playwright-aware file).
-- `src/sourcing/` — `SourceReader` interface + filesystem implementation (path-traversal guarded).
-- `src/viewports/` — viewport presets + resolution.
-- `scripts/` — dev helpers run via Node native TS (`capture.ts`, `login.ts`). Not shipped.
-- `test/` — `node:test` suites; import the **compiled `dist/*.js`** (see TypeScript below).
+Argus is layered and dependency-inverted. The list below is the **durable shape** — responsibilities and rules, not a file inventory. Update it when a _layer or responsibility_ changes; for the current files, read the repo (`git ls-files src`).
 
-Adding a capability: define/extend the relevant `*.interface.ts`, implement it, inject it at the composition root. A tool must never import a concrete implementation.
+**Dependency rule:** dependencies point inward, toward abstractions. A tool depends on a capability **interface**, never on a concrete implementation (Playwright, `fs`, SDK internals).
+
+Layers (outer → inner):
+
+- **Composition root** (`src/index.ts`) — the _only_ place that names concrete classes. Constructs implementations, injects them into tools, starts the stdio transport.
+- **Server** (`src/server/`) — builds the `McpServer` and registers the `ToolRegistration`s it is given (Open/Closed: add a tool by passing it in, never by editing the server).
+- **Tools** (`src/tools/`) — one `*.tool.ts` per MCP tool; each implements `ToolRegistration` and depends on a narrow capability interface. Cross-tool helpers stay separate (e.g. the shared error/result helper).
+- **Capabilities** (e.g. `src/browser/`, `src/sourcing/`) — a `*.interface.ts` naming a capability (`PageCapturer`, `StyleInspector`, `SourceReader`, …) plus its concrete implementation (e.g. the Playwright driver — the _only_ Playwright-aware file). Add one here, then inject it at the composition root.
+- **Domain helpers** (e.g. `src/viewports/`) — pure logic (presets, resolution) with no I/O.
+
+Not shipped: `scripts/` (dev helpers run via Node native TS) and `test/` (`node:test`, importing the compiled `dist/*.js`).
+
+To add a capability: define/extend the relevant `*.interface.ts`, implement it, inject it at the composition root. A tool must never import a concrete implementation.
 
 ## TypeScript & typing (two roles — don't confuse them)
 

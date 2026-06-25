@@ -12,6 +12,7 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -41,19 +42,27 @@ try {
       name: "capture_views",
       arguments: { baseUrl: url, engine, viewports: [...viewports], includeHtml: false },
     },
-    undefined,
+    CallToolResultSchema,
     { timeout: 150_000 },
   );
 
+  // The SDK's callTool return type is a deeply-nested zod-inferred type the linter
+  // cannot resolve; assert the runtime shape (already validated against CallToolResultSchema).
+  const content = (
+    result as unknown as {
+      content: ({ type: "text"; text: string } | { type: "image"; data: string })[];
+    }
+  ).content;
+
   let imageIndex = 0;
-  for (const block of result.content) {
+  for (const block of content) {
     if (block.type === "image") {
       const label = labels[imageIndex] ?? `view-${imageIndex}`;
       const file = `${capturesDir}${engine}-${label}.png`;
       writeFileSync(file, Buffer.from(block.data, "base64"));
       console.log(`  saved ${file}`);
       imageIndex += 1;
-    } else if (block.type === "text") {
+    } else {
       const errors = block.text
         .split("\n")
         .filter((line) => line.includes("[error]") || line.startsWith("Failed requests ("));
