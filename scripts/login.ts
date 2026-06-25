@@ -26,7 +26,9 @@ const page = await context.newPage();
 await page.goto(url);
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });
-await rl.question(`\nA browser opened at ${url}.\nSign in there, then press Enter here to save the session... `);
+await rl.question(
+  `\nA browser opened at ${url}.\nSign in there, then press Enter here to save the session... `,
+);
 rl.close();
 
 await context.storageState({ path: outPath });

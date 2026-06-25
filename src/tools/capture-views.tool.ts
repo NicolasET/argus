@@ -26,7 +26,9 @@ const inputSchema = {
   routes: z
     .array(z.string())
     .optional()
-    .describe('Paths to capture under baseUrl, e.g. ["/", "/pricing", "/faq"]. Omit to capture baseUrl as-is.'),
+    .describe(
+      'Paths to capture under baseUrl, e.g. ["/", "/pricing", "/faq"]. Omit to capture baseUrl as-is.',
+    ),
   engine: z
     .enum(["chromium", "firefox", "webkit"])
     .default("chromium")
@@ -87,7 +89,12 @@ export class CaptureViewsTool implements ToolRegistration {
     baseUrl: string;
     routes?: string[];
     engine: BrowserEngine;
-    viewports: ReadonlyArray<{ preset?: "mobile" | "tablet" | "laptop" | "desktop"; width?: number; height?: number; label?: string }>;
+    viewports: readonly {
+      preset?: "mobile" | "tablet" | "laptop" | "desktop";
+      width?: number;
+      height?: number;
+      label?: string;
+    }[];
     fullPage: boolean;
     autoScroll: boolean;
     storageState?: string;
@@ -124,9 +131,7 @@ export class CaptureViewsTool implements ToolRegistration {
             waitForMs: args.waitForMs,
           });
 
-          if (renderedHtml === undefined) {
-            renderedHtml = result.html;
-          }
+          renderedHtml ??= result.html;
 
           content.push({ type: "image", data: result.screenshotBase64, mimeType: "image/png" });
           content.push({ type: "text", text: formatViewportReport(route, viewport, args.engine, result) });
@@ -168,7 +173,9 @@ function formatViewportReport(
   engine: BrowserEngine,
   result: CaptureResult,
 ): string {
-  const lines: string[] = [`Route: ${route.label} | Viewport: ${describeViewport(viewport)} | Engine: ${engine}`];
+  const lines: string[] = [
+    `Route: ${route.label} | Viewport: ${describeViewport(viewport)} | Engine: ${engine}`,
+  ];
 
   if (result.consoleMessages.length === 0) {
     lines.push("Console: (no messages)");

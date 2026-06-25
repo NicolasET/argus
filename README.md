@@ -2,17 +2,17 @@
 
 > An MCP server that gives an AI **eyes** on your frontend — screenshots + rendered DOM at any viewport, across routes and behind login, for infinite visual iteration.
 
-Argus is a [Model Context Protocol](https://modelcontextprotocol.io) server. It lets an AI assistant render a running frontend at one or more viewport sizes, get back a screenshot of each, read the computed CSS of specific elements, and pull the original source files — so it can *see* what it builds and iterate until the visual goal is met.
+Argus is a [Model Context Protocol](https://modelcontextprotocol.io) server. It lets an AI assistant render a running frontend at one or more viewport sizes, get back a screenshot of each, read the computed CSS of specific elements, and pull the original source files — so it can _see_ what it builds and iterate until the visual goal is met.
 
 Named after **Argus Panoptes**, the hundred-eyed giant of Greek myth.
 
 ## Tools
 
-| Tool | What it does |
-| --- | --- |
-| `capture_views` | Render **one or more routes** at **one or more viewports**; returns a screenshot per route/viewport + console/network diagnostics + the rendered DOM once per route. **Full-page by default** (auto-scrolls to trigger lazy content). Supports authenticated routes via `storageState`. The core iteration loop. |
-| `inspect_styles` | Return **computed CSS** (box model, colors, fonts, spacing) and bounding box for selected CSS selectors at a given viewport. Supports `storageState`. |
-| `read_source` | Read the project's **original source files** (by relative path or glob) so the AI can correlate the rendered UI with the code behind it. |
+| Tool             | What it does                                                                                                                                                                                                                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capture_views`  | Render **one or more routes** at **one or more viewports**; returns a screenshot per route/viewport + console/network diagnostics + the rendered DOM once per route. **Full-page by default** (auto-scrolls to trigger lazy content). Supports authenticated routes via `storageState`. The core iteration loop. |
+| `inspect_styles` | Return **computed CSS** (box model, colors, fonts, spacing) and bounding box for selected CSS selectors at a given viewport. Supports `storageState`.                                                                                                                                                            |
+| `read_source`    | Read the project's **original source files** (by relative path or glob) so the AI can correlate the rendered UI with the code behind it.                                                                                                                                                                         |
 
 ## How it works
 
@@ -20,11 +20,11 @@ You run your dev server yourself (`npm run dev`, `vite`, etc.). Argus only **obs
 
 Rendering is done with [Playwright](https://playwright.dev) across three engines, selectable per call:
 
-| `engine` value | Renderer | Note |
-| --- | --- | --- |
-| `chromium` *(default)* | Chromium | Same engine as Chrome. |
-| `firefox` | Gecko | Playwright's Firefox build. |
-| `webkit` | WebKit | The engine **behind Safari** — runs on Windows/Linux too. |
+| `engine` value         | Renderer | Note                                                      |
+| ---------------------- | -------- | --------------------------------------------------------- |
+| `chromium` _(default)_ | Chromium | Same engine as Chrome.                                    |
+| `firefox`              | Gecko    | Playwright's Firefox build.                               |
+| `webkit`               | WebKit   | The engine **behind Safari** — runs on Windows/Linux too. |
 
 ### Routes & full-page
 
@@ -52,7 +52,12 @@ npm run login -- http://localhost:5173/ .auth/state.json
 Then capture with:
 
 ```json
-{ "baseUrl": "http://localhost:5173", "routes": ["/dashboard"], "storageState": ".auth/state.json", "viewports": [{ "preset": "desktop" }] }
+{
+  "baseUrl": "http://localhost:5173",
+  "routes": ["/dashboard"],
+  "storageState": ".auth/state.json",
+  "viewports": [{ "preset": "desktop" }]
+}
 ```
 
 `.auth/` and `captures/` are git-ignored, so sessions and screenshots never get committed.
@@ -102,11 +107,11 @@ npm run capture -- http://localhost:5173/ chromium --open
 
 `capture_views` and `inspect_styles` accept either a preset name or a custom `{ width, height }`.
 
-| Preset | Size |
-| --- | --- |
-| `mobile` | 375 × 667 |
-| `tablet` | 768 × 1024 |
-| `laptop` | 1366 × 768 |
+| Preset    | Size        |
+| --------- | ----------- |
+| `mobile`  | 375 × 667   |
+| `tablet`  | 768 × 1024  |
+| `laptop`  | 1366 × 768  |
 | `desktop` | 1920 × 1080 |
 
 ## Architecture

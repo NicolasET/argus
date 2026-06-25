@@ -37,7 +37,10 @@ try {
   console.log(`Capturing ${url} (${engine}) at mobile/tablet/desktop ...`);
 
   const result = await client.callTool(
-    { name: "capture_views", arguments: { baseUrl: url, engine, viewports: [...viewports], includeHtml: false } },
+    {
+      name: "capture_views",
+      arguments: { baseUrl: url, engine, viewports: [...viewports], includeHtml: false },
+    },
     undefined,
     { timeout: 150_000 },
   );

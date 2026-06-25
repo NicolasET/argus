@@ -140,7 +140,7 @@ export class PlaywrightDriver implements PageCapturer, StyleInspector, Disposabl
 
   private async getBrowser(engine: BrowserEngine): Promise<Browser> {
     const existing = this.browsers.get(engine);
-    if (existing !== undefined && existing.isConnected()) {
+    if (existing?.isConnected()) {
       return existing;
     }
     const browser = await ENGINES[engine].launch({ headless: true });
@@ -178,7 +178,9 @@ export class PlaywrightDriver implements PageCapturer, StyleInspector, Disposabl
       }
     }
 
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+    });
     await page.waitForTimeout(AUTO_SCROLL_SETTLE_MS);
   }
 

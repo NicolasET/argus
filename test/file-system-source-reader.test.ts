@@ -23,20 +23,35 @@ describe("FileSystemSourceReader", () => {
   });
 
   it("reads files matching a glob", async () => {
-    const result = await reader.read({ projectRoot: root, patterns: ["src/*.css"], maxFiles: 10, maxBytesPerFile: 1024 });
+    const result = await reader.read({
+      projectRoot: root,
+      patterns: ["src/*.css"],
+      maxFiles: 10,
+      maxBytesPerFile: 1024,
+    });
     const paths = result.files.map((file) => file.path).sort();
     assert.deepEqual(paths, ["src/a.css", "src/b.css"]);
   });
 
   it("truncates files over maxBytesPerFile", async () => {
-    const result = await reader.read({ projectRoot: root, patterns: ["src/a.css"], maxFiles: 10, maxBytesPerFile: 4 });
+    const result = await reader.read({
+      projectRoot: root,
+      patterns: ["src/a.css"],
+      maxFiles: 10,
+      maxBytesPerFile: 4,
+    });
     assert.equal(result.files.length, 1);
     assert.equal(result.files[0]?.truncated, true);
     assert.equal(result.files[0]?.content, "body");
   });
 
   it("respects maxFiles and reports the rest as skipped", async () => {
-    const result = await reader.read({ projectRoot: root, patterns: ["src/*.css"], maxFiles: 1, maxBytesPerFile: 1024 });
+    const result = await reader.read({
+      projectRoot: root,
+      patterns: ["src/*.css"],
+      maxFiles: 1,
+      maxBytesPerFile: 1024,
+    });
     assert.equal(result.files.length, 1);
     assert.equal(result.skipped.length, 1);
   });

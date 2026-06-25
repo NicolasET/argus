@@ -32,7 +32,9 @@ const inputSchema = {
   storageState: z
     .string()
     .optional()
-    .describe("Path to a Playwright storageState JSON to inspect authenticated pages (see scripts/login.ts)."),
+    .describe(
+      "Path to a Playwright storageState JSON to inspect authenticated pages (see scripts/login.ts).",
+    ),
   waitForSelector: z.string().optional().describe("CSS selector to wait for before reading."),
   waitForMs: z.number().int().nonnegative().optional().describe("Extra wait (ms) before reading."),
 };
